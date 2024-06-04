@@ -41,22 +41,25 @@ class Regulator:
         self.temperature_ub = 22.0
         self.humidity_lb = 50.0
         self.humidity_ub = 80.0
-        self.humidifier = 17
+        self.humidifier_gpio = 17
+        self.cooler_gpio = 27
             
     def Regulate(self):
         while 1:
             self.sensor.read_data()
             self.sensor.print_data()
             if self.sensor.temperature_c > self.temperature_ub:
-                print("Włączam chłodnik!") 
+                GPIO.output(self.cooler_gpio, GPIO.LOW)
+                print("Cooler ON") 
             elif self.sensor.temperature_c < self.temperature_lb:
-                print("Wyłączam chłodnik!")
+                GPIO.output(self.cooler_gpio, GPIO.HIGH)
+                print("Cooler OFF")
             if self.sensor.humidity > self.humidity_ub:
-                print("Wyłączam wytrysk")
-                GPIO.output(self.humidifier, GPIO.HIGH)
+                print("Humidifier OFF")
+                GPIO.output(self.humidifier_gpio, GPIO.HIGH)
             elif self.sensor.humidity < self.humidity_lb:
-                print("Włączam wytrysk")
-                GPIO.output(self.humidifier, GPIO.LOW)
+                print("Humidifier ON")
+                GPIO.output(self.humidifier_gpio, GPIO.LOW)
             time.sleep(3)
 
     def set_parameters(self, new_temperature_lb,new_temperature_ub,new_humidity_lb,new_humidity_ub):
@@ -74,8 +77,6 @@ class Regulator:
         }
 
 
-#Run regulation on a separate thread
-
 
 sensor = DHT_Sensor(adafruit_dht.DHT22(board.D4))
 regulatator = Regulator(sensor)
@@ -83,15 +84,17 @@ regulatator = Regulator(sensor)
 if GPIO.getmode() is None:
     GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(regulatator.humidifier, GPIO.OUT)
+GPIO.setup(regulatator.humidifier_gpio, GPIO.OUT)
+GPIO.setup(regulatator.cooler_gpio, GPIO.OUT)
 
+#Run regulation on a separate thread
 regulate_t = threading.Thread(target=regulatator.Regulate)
 regulate_t.daemon = True 
 regulate_t.start()
 
 app = Flask(__name__)
 
-#
+#Different routes for HTTP requests
 @app.route('/sensor_data', methods=['GET'])
 def get_sensor_data():
     sensor.read_data()
@@ -104,8 +107,7 @@ def get_sensor_data():
 def set_boundaries():
     if request.method == 'POST':
         data = request.json
-        #print(f"Received JSON data: {data}")
-        #parameters = json.loads(data)
+        print(f"Received JSON data: {data}")
         temp_lb = float(data.get('temp_lb'))
         temp_ub = float(data.get('temp_ub'))
         hum_lb = float(data.get('hum_lb'))
