@@ -15,6 +15,8 @@ class DHT_Sensor:
         self.dht_device = dht_device
         self.temperature_c = temperature_c
         self.humidity = humidity
+        self.cooler_pin = 27
+        self.humidifier_pin = 17
 
     def read_data(self):
         try:
@@ -27,11 +29,20 @@ class DHT_Sensor:
         print(f"Temperature: {self.temperature_c}")
         print(f"Humidity: {self.humidity}")
 
+    def get_cooler_status(self):
+        return GPIO.input(self.cooler_pin)
+
+    def get_humidifier_status(self):
+        return GPIO.input(self.humidifier_pin)
+
     def makea_da_Jason(self):
         return {
             "Date": str(date.datetime.now()),
             "TemperatureC": self.temperature_c,
-            "Humidity": self.humidity
+            "Humidity": self.humidity,
+            "CoolerStatus": "ON" if self.get_cooler_status() == GPIO.LOW else "OFF",
+            "HumidifierStatus": "ON" if self.get_humidifier_status() == GPIO.LOW else "OFF"
+
         }
 
 class Regulator:
