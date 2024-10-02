@@ -8,6 +8,7 @@ import board
 import datetime as date
 import threading
 import RPi.GPIO as GPIO
+import csv
 
 class DHT_Sensor:
 
@@ -54,24 +55,51 @@ class Regulator:
         self.humidity_ub = 80.0
         self.humidifier_gpio = 17
         self.cooler_gpio = 27
-            
+        
+
+        
+        with open('sensor_data.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Date", "TemperatureC", "Humidity", "cooler_status", "humidifier_status"])
+         
+    def save_data_to_csv(self, cooler_status, humidifier_status):
+        with open('sensor_data.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([str(date.datetime.now()), self.sensor.temperature_c, self.sensor.humidity, cooler_status, humidifier_status])
+
     def Regulate(self):
+        cooler_status = 0
+        humidifier_status = 0
+
         while 1:
+            
             self.sensor.read_data()
             self.sensor.print_data()
-            if self.sensor.temperature_c > self.temperature_ub:
+            
+            
+            if self.sensor.temperature_c > self.temperature_ub and cooler_status != 1:
                 GPIO.output(self.cooler_gpio, GPIO.LOW)
+                cooler_status = 1
                 print("Cooler ON") 
-            elif self.sensor.temperature_c < self.temperature_lb:
+            elif self.sensor.temperature_c < self.temperature_lb and cooler_status != 0:
                 GPIO.output(self.cooler_gpio, GPIO.HIGH)
+                cooler_status = 0
                 print("Cooler OFF")
-            if self.sensor.humidity > self.humidity_ub:
+            if self.sensor.humidity > self.humidity_ub and humidifier_status != 0:
                 print("Humidifier OFF")
+                GPIO.output(self.humidifier_gpio, GPIO.LOW)
+                time.sleep(3)
                 GPIO.output(self.humidifier_gpio, GPIO.HIGH)
-            elif self.sensor.humidity < self.humidity_lb:
+                humidifier_status = 0
+            elif self.sensor.humidity < self.humidity_lb and humidifier_status != 1:
                 print("Humidifier ON")
                 GPIO.output(self.humidifier_gpio, GPIO.LOW)
-            time.sleep(3)
+                time.sleep(0.5)
+                GPIO.output(self.humidifier_gpio, GPIO.HIGH)
+                humidifier_status = 1
+                
+            self.save_data_to_csv(cooler_status, humidifier_status)
+            time.sleep(5)
 
     def set_parameters(self, new_temperature_lb,new_temperature_ub,new_humidity_lb,new_humidity_ub):
         self.temperature_lb = new_temperature_lb
